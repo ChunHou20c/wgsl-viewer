@@ -1,3 +1,4 @@
+use bytemuck::bytes_of;
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -102,7 +103,14 @@ struct State<'a> {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    num_indices: u32
+    num_indices: u32,
+
+    resolution_uniform: wgpu::Buffer,
+    resolution_bind_group: wgpu::BindGroup,
+
+    timer: std::time::Instant,
+    time_uniform: wgpu::Buffer,
+    time_bind_group: wgpu::BindGroup,
 }
 
 impl<'a> State<'a> {
@@ -175,10 +183,78 @@ impl<'a> State<'a> {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::from(shader_source.into())),
         });
+
+        let resolution = [size.width as f32, size.height as f32];
+
+        let resolution_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("resolution_uniform"),
+            contents: bytemuck::cast_slice(&[resolution]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let resolution_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("resolution_binding_group_layout"),
+            });
+
+        let resolution_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("resolution_bind_group"),
+            layout: &resolution_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: resolution_uniform.as_entire_binding(),
+            }],
+        });
+
+        let timer = std::time::Instant::now();
+        let time: f32 = timer.elapsed().as_secs_f32();
+        let time_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("time_buffer"),
+            contents: &bytes_of(&time),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let time_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("time_binding_group_layout"),
+            });
+
+        let time_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("time_bind_group"),
+            layout: &time_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: time_uniform.as_entire_binding(),
+            }],
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[
+                    &resolution_bind_group_layout,
+                    &time_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -239,6 +315,7 @@ impl<'a> State<'a> {
             }
         );
 
+
         let num_indices = INDICES.len() as u32;
 
 
@@ -253,7 +330,15 @@ impl<'a> State<'a> {
             render_pipeline,
             vertex_buffer,
             index_buffer,
-            num_indices
+            num_indices,
+
+            // uniforms
+            resolution_uniform,
+            resolution_bind_group,
+
+            time_uniform,
+            time_bind_group,
+            timer,
         }
     }
 
@@ -275,6 +360,13 @@ impl<'a> State<'a> {
     }
 
     fn update(&mut self) {
+        let updated_time = self.timer.elapsed().as_secs_f32();
+        let resolution = [self.config.width as f32, self.config.height as f32];
+        self.queue
+            .write_buffer(&self.time_uniform, 0, &bytes_of(&updated_time));
+        self.queue
+            .write_buffer(&self.resolution_uniform, 0, &bytes_of(&resolution));
+
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -306,6 +398,8 @@ impl<'a> State<'a> {
             render_pass.set_pipeline(&self.render_pipeline); // 2.
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_bind_group(0, &self.resolution_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.time_bind_group, &[]);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1); // 2.
         }
         // submit will accept anything that implements IntoIter

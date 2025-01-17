@@ -1,7 +1,6 @@
 mod core;
 mod vertex;
 
-use std::borrow::Cow;
 use std::path::PathBuf;
 use std::fs;
 
