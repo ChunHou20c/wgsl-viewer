@@ -1,3 +1,4 @@
+use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -5,10 +6,28 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+use crate::vertex::Vertex;
+
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [ -1.0, 1.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, 0.0] },
+    Vertex { position: [ 1.0, -1.0, 0.0] },
+    Vertex { position: [1.0, 1.0, 0.0] }
+];
+
+const INDICES: &[u16] = &[
+    0, 1, 3,
+    1, 2, 3,
+];
+
 pub async fn run() {
     env_logger::init();
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = WindowBuilder::new()
+        .with_inner_size(winit::dpi::LogicalSize::new(600.0, 600.0))
+        .build(&event_loop)
+        .unwrap();
+
     let mut surface_configured = false;
 
     let mut state = State::new(&window).await;
@@ -81,6 +100,9 @@ struct State<'a> {
     // unsafe references to the window's resources.
     window: &'a Window,
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32
 }
 
 impl<'a> State<'a> {
@@ -161,7 +183,7 @@ impl<'a> State<'a> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main", // 1.
-                buffers: &[], // 2.
+                buffers: &[Vertex::desc()], // 2.
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState { // 3.
@@ -196,6 +218,25 @@ impl<'a> State<'a> {
             cache: None, // 6.
         });
 
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(INDICES),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+
+        let num_indices = INDICES.len() as u32;
+
+
 
         Self {
             window,
@@ -205,6 +246,9 @@ impl<'a> State<'a> {
             config,
             size,
             render_pipeline,
+            vertex_buffer,
+            index_buffer,
+            num_indices
         }
     }
 
@@ -221,7 +265,7 @@ impl<'a> State<'a> {
         }
     }
 
-    fn input(&mut self, event: &WindowEvent) -> bool {
+    fn input(&mut self, _event: &WindowEvent) -> bool {
         false
     }
 
@@ -255,7 +299,9 @@ impl<'a> State<'a> {
                 timestamp_writes: None,
             });
             render_pass.set_pipeline(&self.render_pipeline); // 2.
-            render_pass.draw(0..3, 0..1); // 3.
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1); // 2.
         }
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
