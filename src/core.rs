@@ -20,7 +20,7 @@ const INDICES: &[u16] = &[
     1, 2, 3,
 ];
 
-pub async fn run() {
+pub async fn run(shader_source: impl Into<String>) {
     env_logger::init();
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
@@ -30,7 +30,7 @@ pub async fn run() {
 
     let mut surface_configured = false;
 
-    let mut state = State::new(&window).await;
+    let mut state = State::new(&window, shader_source).await;
 
     let _ = event_loop.run(move |event, control_flow| match event {
         Event::WindowEvent {
@@ -107,7 +107,7 @@ struct State<'a> {
 
 impl<'a> State<'a> {
     // Creating some of the wgpu types requires async code
-    async fn new(window: &'a Window) -> State<'a> {
+    async fn new(window: &'a Window, shader_source: impl Into<String>) -> State<'a> {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -166,9 +166,14 @@ impl<'a> State<'a> {
             desired_maximum_frame_latency: 2,
         };
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("vertex.wgsl").into()),
+        });
+
+        let fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::from(shader_source.into())),
         });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -181,13 +186,13 @@ impl<'a> State<'a> {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &vertex_shader,
                 entry_point: "vs_main", // 1.
                 buffers: &[Vertex::desc()], // 2.
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState { // 3.
-                module: &shader,
+                module: &fragment_shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState { // 4.
                     format: config.format,
