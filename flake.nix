@@ -47,7 +47,7 @@
       {
 	packages = rec {
 	  wgsl_viewer = rustPlatform.buildRustPackage {
-	    pname = "wgsl";
+	    pname = "wgsl_viewer";
 	    version = "0.1.0";
 
 	    src = ./.;
