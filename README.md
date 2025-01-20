@@ -21,3 +21,13 @@ modified from glsl shader of https://www.mgsx.net/2015/07/21/009-animated-noise.
 cargo run -- -i noise.wgsl
 ```
 ![2025-01-20T23:28:56,166736751+08:00](https://github.com/user-attachments/assets/69532661-cbc6-4e1a-83b5-a5027b408fc5)
+
+## Run with nix flake
+
+run directly
+```
+nix run github:chunhou20c/wgsl-viewer#wgsl_viewer -- -i <your shader path>
+```
+
+### Contributing to this project
+I do not know whether it works in x11, you may open for issue to improve the project.
