@@ -76,12 +76,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     let position = in.clip_position.xy / u_resolution;
     //let value = fnoise(position, 50.0, 3);
-    let value = pnoise(vec3<f32>(position, u_time * 0.01 ), 1.0, 5, 0.6);
+    let value = pnoise(vec3<f32>(position, u_time * 0.01 ), 15.0, 5, 0.8);
 
     let ripple = fract(value * 30.0);
     let id = floor(value * 30.0) / 30.0;
     let v = mix(id, ripple, pow(1.0 - abs(ripple - 0.5) *0.7, 2.0));
 
-    return vec4<f32>(vec3<f32>(v * 0.5 + 0.5, v * 0.2 + 0.3, v * 0.1 + 0.1), 1.0);
+   // return vec4<f32>(vec3<f32>(v * 0.5 + 0.5, v * 0.2 + 0.3, v * 0.1 + 0.1), 1.0);
+   return vec4<f32>(vec3<f32>(step(value, 0.5)), 1.0);
 
 }
