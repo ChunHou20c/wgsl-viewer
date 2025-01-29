@@ -71,7 +71,7 @@
 	  default = wgsl_viewer;
 	};
 
-        devShells = {
+        devShells = rec {
 
           rust-stable = 
 	    overlay_pkgs.mkShell {
@@ -88,6 +88,9 @@
 	      RUST_LOG = "info";
 	      LD_LIBRARY_PATH = libPath;
 	    };
+
+	  dev = rust-stable;
+
         };
       }
     );
